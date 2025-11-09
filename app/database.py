@@ -1,4 +1,3 @@
-
 import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
@@ -6,8 +5,7 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 # Prefer DATABASE_URL (Render) or fallback to local SQLite for local dev
 DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./local.db")
 
-# If using Postgres on Render, DATABASE_URL might start with postgres:// which SQLAlchemy doesn't like
-# Normalize to postgresql+psycopg2://
+# Normalize to psycopg3 driver for SQLAlchemy
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg://", 1)
 elif DATABASE_URL.startswith("postgresql://"):
