@@ -9,9 +9,9 @@ DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./local.db")
 # If using Postgres on Render, DATABASE_URL might start with postgres:// which SQLAlchemy doesn't like
 # Normalize to postgresql+psycopg2://
 if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg2://", 1)
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg://", 1)
 elif DATABASE_URL.startswith("postgresql://"):
-    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://", 1)
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg://", 1)
 
 # For SQLite need check_same_thread False
 connect_args = {}
