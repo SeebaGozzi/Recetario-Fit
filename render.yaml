@@ -1,0 +1,22 @@
+
+services:
+  - type: web
+    name: recetario-fit
+    env: python
+    plan: free
+    buildCommand: |
+      pip install -r requirements.txt
+      cd frontend && npm ci && npm run build && cd ..
+      # Copy frontend build into backend static dir
+      rm -rf app/static && mkdir -p app/static
+      cp -r frontend/dist/* app/static/
+    startCommand: bash ./start.sh
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: CORS_ORIGINS
+        value: "*"
+    autoDeploy: true
+    healthCheckPath: /
