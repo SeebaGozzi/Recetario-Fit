@@ -5,7 +5,7 @@ services:
     plan: free
     buildCommand: |
       pip install -r requirements.txt
-      cd frontend && npm ci && npm run build && cd ..
+      cd frontend && npm install && npm run build && cd ..
       rm -rf app/static && mkdir -p app/static
       cp -r frontend/dist/* app/static/
       ls -la app/static || true
@@ -15,6 +15,8 @@ services:
         sync: false
       - key: PYTHON_VERSION
         value: 3.11.9
+      - key: NODE_VERSION
+        value: 20
       - key: CORS_ORIGINS
         value: "*"
     autoDeploy: true
