@@ -1,4 +1,3 @@
-
 services:
   - type: web
     name: recetario-fit
@@ -7,9 +6,9 @@ services:
     buildCommand: |
       pip install -r requirements.txt
       cd frontend && npm ci && npm run build && cd ..
-      # Copy frontend build into backend static dir
       rm -rf app/static && mkdir -p app/static
       cp -r frontend/dist/* app/static/
+      ls -la app/static || true
     startCommand: bash ./start.sh
     envVars:
       - key: DATABASE_URL

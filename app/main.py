@@ -2,17 +2,16 @@ import os
 from typing import List, Optional
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 
 from .database import Base, engine, get_db
 from . import models, schemas, seed
 
-# Create tables
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Recetario Fit API", version="1.0.2")
+app = FastAPI(title="Recetario Fit API", version="1.0.3")
 
 origins = os.environ.get("CORS_ORIGINS", "*").split(",")
 app.add_middleware(
@@ -23,18 +22,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ---- Startup: seed initial data ----
 @app.on_event("startup")
 def startup_event():
     db = next(get_db())
     if db.query(models.Recipe).count() == 0:
         seed.insert_initial_recipes(db)
 
-# ---- API ROUTES ----
+# ---------------- API ----------------
 @app.get("/api/recipes", response_model=List[schemas.RecipeOut])
 def list_recipes(db: Session = Depends(get_db)):
-    recipes = db.query(models.Recipe).order_by(models.Recipe.id.desc()).all()
-    return recipes
+    return db.query(models.Recipe).order_by(models.Recipe.id.desc()).all()
 
 @app.post("/api/recipes", response_model=schemas.RecipeOut)
 def create_recipe(recipe: schemas.RecipeCreate, db: Session = Depends(get_db)):
@@ -92,8 +89,28 @@ def download_pdf(pdf_id: int, db: Session = Depends(get_db)):
         headers={"Content-Disposition": f'attachment; filename="{pdf.filename}"'}
     )
 
-# ---- STATIC FILES (React build) ----
-# Mount AFTER declaring API routes so that /api/* works, and serve index.html for "/".
+# ---------------- STATIC (SPA) ----------------
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 os.makedirs(STATIC_DIR, exist_ok=True)
-app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
+
+# Mount at /static (so /api/* never collides)
+app.mount("/static", StaticFiles(directory=STATIC_DIR, html=False), name="static")
+
+def _index_response():
+    index_path = os.path.join(STATIC_DIR, "index.html")
+    if os.path.isfile(index_path):
+        return FileResponse(index_path)
+    # Fallback message to detect missing build
+    return HTMLResponse("<h1>Recetario Fit</h1><p>Build del frontend no encontrado en app/static. Revisá el build de Vite.</p>", status_code=200)
+
+@app.get("/", include_in_schema=False)
+def root():
+    return _index_response()
+
+# Optional: SPA fallback (only for non-API GETs)
+from fastapi import Request
+@app.get("/{full_path:path}", include_in_schema=False)
+def spa_fallback(full_path: str, request: Request):
+    if full_path.startswith("api/"):
+        raise HTTPException(status_code=404, detail="Not Found")
+    return _index_response()
