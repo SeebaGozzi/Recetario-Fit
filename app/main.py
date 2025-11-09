@@ -1,12 +1,10 @@
-
 import os
 from typing import List, Optional
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse, FileResponse, HTMLResponse
+from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
-from starlette.requests import Request
 
 from .database import Base, engine, get_db
 from . import models, schemas, seed
@@ -14,15 +12,8 @@ from . import models, schemas, seed
 # Create tables
 Base.metadata.create_all(bind=engine)
 
-# Seed on startup if empty
-def seed_if_empty(db: Session):
-    count = db.query(models.Recipe).count()
-    if count == 0:
-        seed.insert_initial_recipes(db)
+app = FastAPI(title="Recetario Fit API", version="1.0.2")
 
-app = FastAPI(title="Recetario Fit API", version="1.0.0")
-
-# CORS for local dev and Render domains
 origins = os.environ.get("CORS_ORIGINS", "*").split(",")
 app.add_middleware(
     CORSMiddleware,
@@ -32,20 +23,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Static serving: the frontend build will be placed into ./static after Render build
-STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
-if not os.path.isdir(STATIC_DIR):
-    os.makedirs(STATIC_DIR, exist_ok=True)
-app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
-
+# ---- Startup: seed initial data ----
 @app.on_event("startup")
 def startup_event():
     db = next(get_db())
-    seed_if_empty(db)
+    if db.query(models.Recipe).count() == 0:
+        seed.insert_initial_recipes(db)
 
-# -------- Recipes endpoints --------
-from sqlalchemy import select
-
+# ---- API ROUTES ----
 @app.get("/api/recipes", response_model=List[schemas.RecipeOut])
 def list_recipes(db: Session = Depends(get_db)):
     recipes = db.query(models.Recipe).order_by(models.Recipe.id.desc()).all()
@@ -60,9 +45,7 @@ def create_recipe(recipe: schemas.RecipeCreate, db: Session = Depends(get_db)):
         steps=recipe.steps,
         is_healthy=True if recipe.is_healthy is None else recipe.is_healthy
     )
-    db.add(new_r)
-    db.commit()
-    db.refresh(new_r)
+    db.add(new_r); db.commit(); db.refresh(new_r)
     return new_r
 
 @app.get("/api/recipes/{recipe_id}", response_model=schemas.RecipeOut)
@@ -72,7 +55,6 @@ def get_recipe(recipe_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Recipe not found")
     return r
 
-# -------- PDF Uploads --------
 @app.post("/api/pdfs", response_model=schemas.PDFOut)
 async def upload_pdf(
     title: str = Form(...),
@@ -90,14 +72,13 @@ async def upload_pdf(
         content_type=file.content_type or "application/pdf",
         data=data
     )
-    db.add(pdf)
-    db.commit()
-    db.refresh(pdf)
+    db.add(pdf); db.commit(); db.refresh(pdf)
     return pdf
 
 @app.get("/api/pdfs", response_model=List[schemas.PDFOutMeta])
 def list_pdfs(db: Session = Depends(get_db)):
-    q = db.query(models.RecipePDF.id, models.RecipePDF.title, models.RecipePDF.description, models.RecipePDF.filename).order_by(models.RecipePDF.id.desc()).all()
+    q = db.query(models.RecipePDF.id, models.RecipePDF.title, models.RecipePDF.description, models.RecipePDF.filename)\
+          .order_by(models.RecipePDF.id.desc()).all()
     return [{"id": r[0], "title": r[1], "description": r[2], "filename": r[3]} for r in q]
 
 @app.get("/api/pdfs/{pdf_id}")
@@ -110,3 +91,9 @@ def download_pdf(pdf_id: int, db: Session = Depends(get_db)):
         media_type=pdf.content_type,
         headers={"Content-Disposition": f'attachment; filename="{pdf.filename}"'}
     )
+
+# ---- STATIC FILES (React build) ----
+# Mount AFTER declaring API routes so that /api/* works, and serve index.html for "/".
+STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
+os.makedirs(STATIC_DIR, exist_ok=True)
+app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
