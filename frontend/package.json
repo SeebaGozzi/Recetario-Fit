@@ -1,4 +1,3 @@
-
 {
   "name": "recetario-fit",
   "private": true,
@@ -16,9 +15,10 @@
   "devDependencies": {
     "@types/react": "^18.3.5",
     "@types/react-dom": "^18.3.0",
-    "autoprefixer": "^10.4.20",
-    "postcss": "^8.4.41",
-    "tailwindcss": "^3.4.14",
-    "vite": "^5.4.9"
+    "@vitejs/plugin-react": "^5.1.0",
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.18",
+    "vite": "^5.4.21"
   }
 }
