@@ -9,11 +9,12 @@ from sqlalchemy.orm import Session
 from .database import Base, engine, get_db
 from . import models, schemas, seed
 
-# Create tables
+# Crear tablas
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Recetario Fit API", version="1.0.4")
+app = FastAPI(title="Recetario Fit API", version="1.0.5")
 
+# CORS
 origins = os.environ.get("CORS_ORIGINS", "*").split(",")
 app.add_middleware(
     CORSMiddleware,
@@ -23,6 +24,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Seed inicial
 @app.on_event("startup")
 def startup_event():
     db = next(get_db())
@@ -94,14 +96,28 @@ def download_pdf(pdf_id: int, db: Session = Depends(get_db)):
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 os.makedirs(STATIC_DIR, exist_ok=True)
 
-# Serve raw files at /static
-app.mount("/static", StaticFiles(directory=STATIC_DIR, html=False), name="static")
+# Servir colecciones directamente en rutas top-level
+app.mount("/assets", StaticFiles(directory=os.path.join(STATIC_DIR, "assets"), html=False), name="assets")
+app.mount("/icons", StaticFiles(directory=os.path.join(STATIC_DIR, "icons"), html=False), name="icons")
+app.mount("/static", StaticFiles(directory=STATIC_DIR, html=False), name="static")  # por compatibilidad
 
 def _index_response():
     index_path = os.path.join(STATIC_DIR, "index.html")
     if os.path.isfile(index_path):
         return FileResponse(index_path)
-    return HTMLResponse("<h1>Recetario Fit</h1><p>Build del frontend no encontrado en app/static. Revisá el build de Vite.</p>", status_code=200)
+    return HTMLResponse(
+        "<h1>Recetario Fit</h1><p>Build del frontend no encontrado en app/static. Revisá el build de Vite.</p>",
+        status_code=200
+    )
+
+@app.get("/manifest.webmanifest", include_in_schema=False)
+def manifest():
+    return FileResponse(os.path.join(STATIC_DIR, "manifest.webmanifest"))
+
+@app.get("/sw.js", include_in_schema=False)
+def service_worker():
+    # SW debe servirse en la raíz
+    return FileResponse(os.path.join(STATIC_DIR, "sw.js"))
 
 @app.get("/", include_in_schema=False)
 def root():
@@ -109,6 +125,7 @@ def root():
 
 @app.get("/{full_path:path}", include_in_schema=False)
 def spa_fallback(full_path: str, request: Request):
+    # No pisar endpoints de API
     if full_path.startswith("api/"):
         raise HTTPException(status_code=404, detail="Not Found")
     return _index_response()
